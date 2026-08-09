@@ -479,7 +479,7 @@ def atualizar_sobre():
     cursor.close()
     conn.close()
 
-    return redirect(url_for("admin", msg="Informações de perfil atualizadas com sucesso!"))
+    return redirect(url_for("admin", msg="Informações do perfil atualizadas com sucesso!"))
 
 
 if __name__ == "__main__":
