@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nathan Moreira Ramos — Portfólio</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <header>
+        <a href="/" class="logo">Nathan Moreira Ramos</a>
+        <div class="nav-right">
+            <nav>
+                <a href="/projetos">Projetos</a>
+                <a href="#habilidades">Habilidades</a>
+                <a href="#sobre">Sobre</a>
+                <a href="#contato">Contato</a>
+            </nav>
+            <button class="theme-toggle" onclick="alternarTema()" aria-label="Alternar Tema">
+                <!-- Ícone de Sol -->
+                <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.51 4.92l2.12 2.12 1.41-1.41L4.92 3.51 3.51 4.92zm14.85 14.85l2.12 2.12 1.41-1.41-2.12-2.12-1.41 1.41zM1 11h3v2H1v-2zm19 0h3v2h-3v-2zM4.92 19.08l1.41-1.41 2.12 2.12-1.41 1.41-2.12-2.12zm14.85-14.85l1.41 1.41 2.12-2.12-1.41-1.41-2.12 2.12z"/></svg>
+                <!-- Ícone de Lua -->
+                <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <section class="hero">
+        {% if sobre and sobre.avatar_url %}
+        <div style="margin-bottom: 2rem;">
+            <img src="{{ sobre.avatar_url }}" alt="Avatar" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-color); box-shadow: 0 10px 25px var(--accent-glow);">
+        </div>
+        {% endif %}
+        <h1>{{ sobre.titulo_principal if sobre else 'Desenvolvedor & Criador de Sistemas.' }}</h1>
+        {% if sobre and sobre.subtitulo %}
+        <p style="font-size: 1.15rem; color: var(--accent-color); font-weight: 600; margin-bottom: 0.8rem;">{{ sobre.subtitulo }}</p>
+        {% endif %}
+        <p>{{ sobre.texto_home if sobre and sobre.texto_home else sobre.biografia if sobre else 'Transformando ideias em aplicações robustas, limpas e funcionais.' }}</p>
+    </section>
+
+    <section id="projetos">
+        <div class="section-header">
+            <h2 class="section-title">Projetos em Destaque</h2>
+            <a href="/projetos" class="view-all-link">Ver todos os projetos →</a>
+        </div>
+        <div class="projects-grid">
+            {% for projeto in projetos %}
+            <a href="/projeto/{{ projeto.slug }}" class="project-card">
+                {% if projeto.imagem_capa %}
+                <img src="{{ projeto.imagem_capa }}" alt="{{ projeto.titulo }}">
+                {% else %}
+                <div class="img-placeholder">Sem imagem</div>
+                {% endif %}
+                <h3>{{ projeto.titulo }}</h3>
+                <p>{{ projeto.descricao_curta }}</p>
+                <div class="project-links">Explorar Projeto →</div>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section id="habilidades">
+        <div class="section-header">
+            <h2 class="section-title">Tech Stack & Habilidades</h2>
+        </div>
+
+        <div class="filter-buttons">
+            <button class="filter-btn active" onclick="filtrarHabilidades('todos', this)">Todas ({{ habilidades | length }})</button>
+            {% set categorias = [] %}
+            {% for hab in habilidades %}
+                {% if hab.categoria not in categorias %}
+                    {% set _ = categorias.append(hab.categoria) %}
+                    {% set count = namespace(value=0) %}
+                    {% for h in habilidades %}
+                        {% if h.categoria == hab.categoria %}
+                            {% set count.value = count.value + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    <button class="filter-btn" onclick="filtrarHabilidades('{{ hab.categoria }}', this)">{{ hab.categoria }} ({{ count.value }})</button>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="skills-grid" id="skillsGrid">
+            {% for hab in habilidades %}
+            <div class="skill-tag" data-categoria="{{ hab.categoria }}" style="--custom-border: {{ hab.cor if hab.cor else 'var(--accent-color)' }}; --custom-bg: {{ hab.cor_fundo if hab.cor_fundo else 'var(--card-bg)' }}; --custom-text: {{ hab.cor_texto if hab.cor_texto else 'var(--text-color)' }};">
+                <span class="skill-name">{{ hab.nome }}</span>
+                <span class="skill-cat">{{ hab.categoria }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section id="sobre">
+        <div class="section-header">
+            <h2 class="section-title">Sobre Mim</h2>
+        </div>
+        <div class="about-content">
+            <p>{{ sobre.biografia if sobre else 'Estudante de Análise e Desenvolvimento de Sistemas focado em engenharia de software limpa.' }}</p>
+            {% if sobre.localizacao %}
+            <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.95rem;">📍 Localização: {{ sobre.localizacao }}</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <footer id="contato">
+        <p>Vamos trabalhar juntos? Entre em contato:</p>
+        <a href="mailto:{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}"
+           class="footer-email"
+           data-email-modal
+           data-email="{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}">
+            <svg class="mail-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="4.5" width="20" height="15" rx="1.5"/>
+                <path d="m2.5 5.5 9.5 8 9.5-8"/>
+            </svg>
+            {{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}
+        </a>
+        <div class="social-links">
+            {% if sobre and sobre.link_github %}<a href="{{ sobre.link_github }}" target="_blank">GitHub</a>{% endif %}
+            {% if sobre and sobre.link_linkedin %}<a href="{{ sobre.link_linkedin }}" target="_blank">LinkedIn</a>{% endif %}
+        </div>
+    </footer>
+
+    <script>
+        function alternarTema() {
+            document.body.classList.toggle('light-theme');
+            if (document.body.classList.contains('light-theme')) {
+                localStorage.setItem('theme', 'light');
+            } else {
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        } else {
+            document.body.classList.remove('light-theme');
+        }
+
+        function filtrarHabilidades(categoria, btn) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            document.querySelectorAll('.skill-tag').forEach(card => {
+                if (categoria === 'todos' || card.getAttribute('data-categoria') === categoria) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='js/email-modal.js') }}"></script>
+</body>
+</html>

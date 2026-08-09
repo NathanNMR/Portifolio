@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ projeto.titulo }} — Nathan Moreira Ramos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <header>
+        <a href="/projetos" class="logo">← Voltar para Projetos</a>
+        <div class="nav-right">
+            <span style="font-size: 0.9rem; font-weight: 600; color: var(--text-muted);">Nathan Moreira Ramos</span>
+            <button class="theme-toggle" onclick="alternarTema()" aria-label="Alternar Tema">
+                <!-- Ícone de Sol -->
+                <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.51 4.92l2.12 2.12 1.41-1.41L4.92 3.51 3.51 4.92zm14.85 14.85l2.12 2.12 1.41-1.41-2.12-2.12-1.41 1.41zM1 11h3v2H1v-2zm19 0h3v2h-3v-2zM4.92 19.08l1.41-1.41 2.12 2.12-1.41 1.41-2.12-2.12zm14.85-14.85l1.41 1.41 2.12-2.12-1.41-1.41-2.12 2.12z"/></svg>
+                <!-- Ícone de Lua -->
+                <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="project-detail" style="max-width: 850px; margin: 0 auto;">
+        <h1>{{ projeto.titulo }}</h1>
+        <p class="date">Publicado em: {{ projeto.criado_em.strftime('%d/%m/%Y') }}</p>
+
+        {% if projeto.imagem_capa %}
+        <div class="media-container">
+            <img src="{{ projeto.imagem_capa }}" alt="{{ projeto.titulo }}">
+        </div>
+        {% endif %}
+
+        {% if projeto.video_url %}
+        <div class="video-container" style="margin: 2rem 0;">
+            <iframe width="100%" height="480" src="{{ projeto.video_url }}" title="Vídeo do Projeto" frameborder="0" allowfullscreen style="border-radius: 14px;"></iframe>
+        </div>
+        {% endif %}
+
+        <div class="description-long">
+            {{ projeto.descricao_longa | safe }}
+        </div>
+
+        {% if imagens_extras %}
+        <div style="margin-top: 3rem;">
+            <h3 style="font-size: 1.3rem; margin-bottom: 1.2rem; letter-spacing: -0.5px;">Galeria do Projeto</h3>
+            <div class="gallery-grid">
+                {% for img in imagens_extras %}
+                <img src="{{ img.imagem_url }}" alt="Imagem extra do projeto">
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="action-links">
+            {% if projeto.link_github %}
+                <a href="{{ projeto.link_github }}" target="_blank" class="btn">Repositório GitHub</a>
+            {% endif %}
+            {% if projeto.link_deploy %}
+                <a href="{{ projeto.link_deploy }}" target="_blank" class="btn">Acessar Sistema Online</a>
+            {% endif %}
+            {% if projeto.tipo_download %}
+                <a href="{{ projeto.tipo_download }}" class="btn" download>Baixar Arquivo / Build</a>
+            {% endif %}
+        </div>
+    </main>
+
+    <footer style="max-width: 850px; margin: 5rem auto 0 auto;">
+        <p>Nathan Moreira Ramos</p>
+        <div class="social-links" style="margin-top: 1rem;">
+            <a href="/">Início</a>
+            <a href="/projetos">Projetos</a>
+        </div>
+    </footer>
+
+    <script>
+        function alternarTema() {
+            document.body.classList.toggle('light-theme');
+            if (document.body.classList.contains('light-theme')) {
+                localStorage.setItem('theme', 'light');
+            } else {
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        } else {
+            document.body.classList.remove('light-theme');
+        }
+    </script>
+</body>
+</html>

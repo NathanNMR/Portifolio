@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todos os Projetos — Nathan Moreira Ramos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <header>
+        <a href="/" class="logo">Nathan Moreira Ramos</a>
+        <div class="nav-right">
+            <nav>
+                <a href="/">Início</a>
+                <a href="/#habilidades">Habilidades</a>
+                <a href="/#sobre">Sobre</a>
+                <a href="/#contato">Contato</a>
+            </nav>
+            <button class="theme-toggle" onclick="alternarTema()" aria-label="Alternar Tema">
+                <!-- Ícone de Sol -->
+                <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.51 4.92l2.12 2.12 1.41-1.41L4.92 3.51 3.51 4.92zm14.85 14.85l2.12 2.12 1.41-1.41-2.12-2.12-1.41 1.41zM1 11h3v2H1v-2zm19 0h3v2h-3v-2zM4.92 19.08l1.41-1.41 2.12 2.12-1.41 1.41-2.12-2.12zm14.85-14.85l1.41 1.41 2.12-2.12-1.41-1.41-2.12 2.12z"/></svg>
+                <!-- Ícone de Lua -->
+                <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <div style="margin-bottom: 2.5rem;">
+            <h1 style="font-size: 2.8rem; letter-spacing: -1.5px; margin-bottom: 0.8rem;">Repositório de Projetos</h1>
+            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem;">Lista completa de todos os sistemas, aplicações e trabalhos desenvolvidos.</p>
+            
+            <input type="text" id="searchInput" class="search-bar" placeholder="Pesquisar projeto por nome ou tecnologia..." onkeyup="buscarProjetos()">
+        </div>
+
+        <div class="projects-grid" id="projectsGrid">
+            {% for projeto in projetos %}
+            <a href="/projeto/{{ projeto.slug }}" class="project-card" data-title="{{ projeto.titulo | lower }}" data-desc="{{ projeto.descricao_curta | lower }}">
+                {% if projeto.imagem_capa %}
+                <img src="{{ projeto.imagem_capa }}" alt="{{ projeto.titulo }}">
+                {% else %}
+                <div class="img-placeholder">Sem imagem</div>
+                {% endif %}
+                <h3>{{ projeto.titulo }}</h3>
+                <p>{{ projeto.descricao_curta }}</p>
+                <div class="project-links">Explorar Projeto →</div>
+            </a>
+            {% endfor %}
+        </div>
+    </main>
+
+    <footer>
+        <p>Contato profissional:</p>
+        <a href="mailto:{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}"
+           class="footer-email"
+           data-email-modal
+           data-email="{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}">
+            <svg class="mail-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="4.5" width="20" height="15" rx="1.5"/>
+                <path d="m2.5 5.5 9.5 8 9.5-8"/>
+            </svg>
+            {{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}
+        </a>
+        <div class="social-links">
+            {% if sobre and sobre.link_github %}<a href="{{ sobre.link_github }}" target="_blank">GitHub</a>{% endif %}
+            {% if sobre and sobre.link_linkedin %}<a href="{{ sobre.link_linkedin }}" target="_blank">LinkedIn</a>{% endif %}
+        </div>
+    </footer>
+
+    <script>
+        function alternarTema() {
+            document.body.classList.toggle('light-theme');
+            if (document.body.classList.contains('light-theme')) {
+                localStorage.setItem('theme', 'light');
+            } else {
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        } else {
+            document.body.classList.remove('light-theme');
+        }
+
+        function buscarProjetos() {
+            let termo = document.getElementById('searchInput').value.toLowerCase();
+            let cards = document.querySelectorAll('.project-card');
+
+            cards.forEach(card => {
+                let titulo = card.getAttribute('data-title');
+                let desc = card.getAttribute('data-desc');
+
+                if (titulo.includes(termo) || desc.includes(termo)) {
+                    card.style.display = 'flex';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+    </script>
+    <script src="{{ url_for('static', filename='js/email-modal.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Segredos - NUNCA suba isso pro GitHub
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Uploads de usuário (opcional: remova esta linha se quiser versionar as imagens)
+static/uploads/*
+!static/uploads/.gitkeep
+
+# Editores
+.vscode/
+.idea/
