@@ -36,14 +36,12 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Configuração do Banco de Dados via SQLAlchemy com suporte a Aiven (PyMySQL + SSL)
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
-    # Ajusta o prefixo para o driver pymysql e configura o ssl se necessário
     if database_url.startswith("mysql://"):
         database_url = database_url.replace("mysql://", "mysql+pymysql://", 1)
-    if "ssl-mode=" not in database_url:
+    if "ssl-mode=" not in database_url and "ssl_disabled=" not in database_url:
         separator = "&" if "?" in database_url else "?"
         database_url = f"{database_url}{separator}ssl_disabled=false"
 else:
-    # Fallback local para desenvolvimento
     database_url = "sqlite:///portfolio_local.db"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
@@ -224,7 +222,7 @@ def adicionar_projeto():
             if res[0] >= 3:
                 return redirect(url_for(
                     "admin",
-                    erro_destaque="Limite de 3 projetos em destaque atingido! Retire o destaque de algum projeto existente."
+                    erro_destaque="Limite de 3 projetos em destaque atingido! Retire el destaque de algum projeto existente."
                 ))
 
         imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
@@ -392,5 +390,6 @@ def atualizar_sobre():
 
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    app.run(debug=debug_mode)
+    app.run(host="0.0.0.0", port=port, debug=debug_mode)
