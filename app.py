@@ -47,7 +47,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# Criação automática das tabelas caso não existam no banco da Aiven
+# Criação automática das tabelas e colunas necessárias no banco da Aiven
 with app.app_context():
     try:
         with db.engine.begin() as conn:
@@ -96,7 +96,8 @@ with app.app_context():
                     categoria VARCHAR(100),
                     cor VARCHAR(50),
                     cor_fundo VARCHAR(50),
-                    cor_texto VARCHAR(50)
+                    cor_texto VARCHAR(50),
+                    destaque TINYINT DEFAULT 0
                 );
             """)
     except Exception as e:
@@ -368,11 +369,12 @@ def adicionar_habilidade():
     cor = request.form["cor"]
     cor_fundo = request.form["cor_fundo"]
     cor_texto = request.form["cor_texto"]
+    destaque = 1 if "destaque" in request.form else 0
 
     with db.engine.begin() as conn:
         conn.exec_driver_sql(
-            "INSERT INTO habilidades (nome, categoria, cor, cor_fundo, cor_texto) VALUES (%s, %s, %s, %s, %s)",
-            (nome, categoria, cor, cor_fundo, cor_texto)
+            "INSERT INTO habilidades (nome, categoria, cor, cor_fundo, cor_texto, destaque) VALUES (%s, %s, %s, %s, %s, %s)",
+            (nome, categoria, cor, cor_fundo, cor_texto, destaque)
         )
     return redirect(url_for("admin", msg="Habilidade adicionada com sucesso!"))
 
@@ -385,11 +387,12 @@ def editar_habilidade(id):
     cor = request.form["cor"]
     cor_fundo = request.form["cor_fundo"]
     cor_texto = request.form["cor_texto"]
+    destaque = 1 if "destaque" in request.form else 0
 
     with db.engine.begin() as conn:
         conn.exec_driver_sql(
-            "UPDATE habilidades SET nome = %s, categoria = %s, cor = %s, cor_fundo = %s, cor_texto = %s WHERE id = %s",
-            (nome, categoria, cor, cor_fundo, cor_texto, id)
+            "UPDATE habilidades SET nome = %s, categoria = %s, cor = %s, cor_fundo = %s, cor_texto = %s, destaque = %s WHERE id = %s",
+            (nome, categoria, cor, cor_fundo, cor_texto, destaque, id)
         )
     return redirect(url_for("admin", msg="Habilidade atualizada com sucesso!"))
 
