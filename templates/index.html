@@ -63,12 +63,13 @@
     <section id="habilidades">
         <div class="section-header">
             <h2 class="section-title">Habilidades em Destaque</h2>
+            <a href="/habilidades" class="view-all-link">Ver todas as habilidades →</a>
         </div>
         
-        <!-- 4 Habilidades em Destaque (Estilo de Grid semelhante aos projetos) -->
+        <!-- 4 Habilidades em Destaque controladas pelo painel admin -->
         <div class="projects-grid" style="margin-bottom: 3rem;">
             {% for hab in habilidades_destaque %}
-            <div class="project-card" style="cursor: default; display: flex; flex-direction: column; justify-content: space-between; border-left: 4px solid {{ hab.cor if hab.cor else 'var(--accent-color)' }};">
+            <div class="project-card" style="cursor: default; display: flex; flex-direction: column; justify-content: space-between; border-left: 4px solid {{ hab.cor if hab.cor else 'var(--accent-color)' }}; background-color: {{ hab.cor_fundo if hab.cor_fundo else 'var(--card-bg)' }}; color: {{ hab.cor_texto if hab.cor_texto else 'var(--text-color)' }};">
                 <div>
                     <span style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 600;">{{ hab.categoria }}</span>
                     <h3 style="margin-top: 0.4rem; font-size: 1.25rem;">{{ hab.nome }}</h3>
@@ -76,36 +77,6 @@
                 <div style="margin-top: 1.5rem; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--accent-color);">
                     ● Habilidade Ativa
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div class="section-header" style="margin-top: 2rem;">
-            <h2 class="section-title" style="font-size: 1.5rem;">Tech Stack Completa</h2>
-        </div>
-
-        <div class="filter-buttons">
-            <button class="filter-btn active" onclick="filtrarHabilidades('todos', this)">Todas ({{ habilidades | length }})</button>
-            {% set categorias = [] %}
-            {% for hab in habilidades %}
-                {% if hab.categoria not in categorias %}
-                    {% set _ = categorias.append(hab.categoria) %}
-                    {% set count = namespace(value=0) %}
-                    {% for h in habilidades %}
-                        {% if h.categoria == hab.categoria %}
-                            {% set count.value = count.value + 1 %}
-                        {% endif %}
-                    {% endfor %}
-                    <button class="filter-btn" onclick="filtrarHabilidades('{{ hab.categoria }}', this)">{{ hab.categoria }} ({{ count.value }})</button>
-                {% endif %}
-            {% endfor %}
-        </div>
-
-        <div class="skills-grid" id="skillsGrid">
-            {% for hab in habilidades %}
-            <div class="skill-tag" data-categoria="{{ hab.categoria }}" style="--custom-border: {{ hab.cor if hab.cor else 'var(--accent-color)' }}; --custom-bg: {{ hab.cor_fundo if hab.cor_fundo else 'var(--card-bg)' }}; --custom-text: {{ hab.cor_texto if hab.cor_texto else 'var(--text-color)' }};">
-                <span class="skill-name">{{ hab.nome }}</span>
-                <span class="skill-cat">{{ hab.categoria }}</span>
             </div>
             {% endfor %}
         </div>
@@ -154,19 +125,6 @@
             document.body.classList.add('light-theme');
         } else {
             document.body.classList.remove('light-theme');
-        }
-
-        function filtrarHabilidades(categoria, btn) {
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            document.querySelectorAll('.skill-tag').forEach(card => {
-                if (categoria === 'todos' || card.getAttribute('data-categoria') === categoria) {
-                    card.style.display = 'flex';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
         }
     </script>
     <script src="{{ url_for('static', filename='js/email-modal.js') }}"></script>

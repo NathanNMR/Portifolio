@@ -233,6 +233,11 @@
                     </div>
                 </div>
 
+                <div style="display: flex; align-items: center; gap: 0.8rem; margin-top: 0.5rem;">
+                    <input type="checkbox" id="destaque_hab" name="destaque" value="1" style="width: 18px; height: 18px; cursor: pointer;">
+                    <label for="destaque_hab" style="font-weight: 600; font-size: 0.95rem; cursor: pointer;">Exibir nas 4 Habilidades em Destaque da Home</label>
+                </div>
+
                 <button type="submit" class="btn" style="width: 100%; justify-content: center; margin-top: 0.5rem;">Adicionar Habilidade</button>
             </form>
 
@@ -246,10 +251,11 @@
                         <input type="text" name="categoria" value="{{ h.categoria }}" required placeholder="Categoria">
                     </div>
                     
-                    <div style="display: flex; gap: 1rem; align-items: center; justify-content: space-between; font-size: 0.85rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; justify-content: space-between; font-size: 0.85rem; flex-wrap: wrap;">
                         <div>Linha: <input type="color" name="cor" value="{{ h.cor if h.cor else '#3B82F6' }}" style="vertical-align: middle; width: 35px; height: 28px; border: 1px solid var(--gray-border); background:none; border-radius: 4px;"></div>
                         <div>Fundo: <input type="color" name="cor_fundo" value="{{ h.cor_fundo if h.cor_fundo else '#121316' }}" style="vertical-align: middle; width: 35px; height: 28px; border: 1px solid var(--gray-border); background:none; border-radius: 4px;"></div>
                         <div>Letras: <input type="color" name="cor_texto" value="{{ h.cor_texto if h.cor_texto else '#EDEDED' }}" style="vertical-align: middle; width: 35px; height: 28px; border: 1px solid var(--gray-border); background:none; border-radius: 4px;"></div>
+                        <div><input type="checkbox" name="destaque" value="1" {% if h.destaque == 1 %}checked{% endif %} style="cursor: pointer;"> Destaque</div>
                         
                         <button type="submit" class="btn-secondary">Salvar</button>
                         <a href="#" onclick="if(confirm('Excluir habilidade?')) { document.getElementById('delete-hab-{{ h.id }}').submit(); } return false;" class="btn-danger">Excluir</a>
