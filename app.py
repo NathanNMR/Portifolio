@@ -6,8 +6,7 @@ from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, abort, session, flash
 )
-import mysql.connector
-from mysql.connector import pooling
+from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash
 import bleach
@@ -22,8 +21,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY")
 if not app.secret_key:
     raise RuntimeError(
-        "SECRET_KEY não definida. Configure-a no arquivo .env "
-        "(veja .env.example)."
+        "SECRET_KEY não definida. Configure-a no arquivo .env."
     )
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME")
@@ -34,6 +32,24 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Configuração do Banco de Dados via SQLAlchemy com suporte a Aiven (PyMySQL + SSL)
+database_url = os.environ.get("DATABASE_URL")
+if database_url:
+    # Ajusta o prefixo para o driver pymysql e configura o ssl se necessário
+    if database_url.startswith("mysql://"):
+        database_url = database_url.replace("mysql://", "mysql+pymysql://", 1)
+    if "ssl-mode=" not in database_url:
+        separator = "&" if "?" in database_url else "?"
+        database_url = f"{database_url}{separator}ssl_disabled=false"
+else:
+    # Fallback local para desenvolvimento
+    database_url = "sqlite:///portfolio_local.db"
+
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db = SQLAlchemy(app)
 
 EXTENSOES_PERMITIDAS = {"png", "jpg", "jpeg", "webp"}
 
@@ -70,32 +86,6 @@ def sanitizar_html(texto):
         css_sanitizer=css_sanitizer,
         strip=True
     )
-
-
-# Configuração blindada com porta garantida como inteiro (int)
-DB_CONFIG = {
-    "host": os.environ.get("DB_HOST", "mysql-203b7745-nathannmr.d.aivencloud.com"),
-    "port": 20110,
-    "user": os.environ.get("DB_USER", "avnadmin"),
-    "password": os.environ.get("DB_PASSWORD"),
-    "database": os.environ.get("DB_NAME", "defaultdb"),
-    "ssl_disabled": False,
-}
-
-if not DB_CONFIG["password"]:
-    raise RuntimeError(
-        "DB_PASSWORD não definida. Configure-a no arquivo .env ou no Render."
-    )
-
-connection_pool = pooling.MySQLConnectionPool(
-    pool_name="portfolio_pool",
-    pool_size=5,
-    **DB_CONFIG
-)
-
-
-def get_db_connection():
-    return connection_pool.get_connection()
 
 
 def login_required(view_func):
@@ -139,66 +129,41 @@ def logout():
 
 @app.route("/")
 def home():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    with db.engine.connect() as conn:
+        sobre = conn.exec_driver_sql("SELECT * FROM sobre_mim LIMIT 1").mappings().fetchone()
 
-    cursor.execute("SELECT * FROM sobre_mim LIMIT 1")
-    sobre = cursor.fetchone()
+        projetos = conn.exec_driver_sql("""
+            SELECT id, titulo, slug, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque, criado_em,
+                   IF(CHAR_LENGTH(descricao_curta) > 110, CONCAT(SUBSTRING(descricao_curta, 1, 107), '...'), descricao_curta) AS descricao_curta
+            FROM projetos 
+            WHERE destaque = 1 
+            ORDER BY criado_em DESC 
+            LIMIT 3
+        """).mappings().all()
 
-    cursor.execute("""
-        SELECT id, titulo, slug, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque, criado_em,
-               IF(CHAR_LENGTH(descricao_curta) > 110, CONCAT(SUBSTRING(descricao_curta, 1, 107), '...'), descricao_curta) AS descricao_curta
-        FROM projetos 
-        WHERE destaque = 1 
-        ORDER BY criado_em DESC 
-        LIMIT 3
-    """)
-    projetos = cursor.fetchall()
-
-    cursor.execute("SELECT * FROM habilidades")
-    habilidades = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+        habilidades = conn.exec_driver_sql("SELECT * FROM habilidades").mappings().all()
 
     return render_template("index.html", sobre=sobre, projetos=projetos, habilidades=habilidades)
 
 
 @app.route("/projetos")
 def todos_projetos():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("SELECT * FROM sobre_mim LIMIT 1")
-    sobre = cursor.fetchone()
-
-    cursor.execute("SELECT * FROM projetos ORDER BY criado_em DESC")
-    projetos = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+    with db.engine.connect() as conn:
+        sobre = conn.exec_driver_sql("SELECT * FROM sobre_mim LIMIT 1").mappings().fetchone()
+        projetos = conn.exec_driver_sql("SELECT * FROM projetos ORDER BY criado_em DESC").mappings().all()
 
     return render_template("todos_projetos.html", sobre=sobre, projetos=projetos)
 
 
 @app.route("/projeto/<string:slug>")
 def detalhes_projeto(slug):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    with db.engine.connect() as conn:
+        projeto = conn.exec_driver_sql("SELECT * FROM projetos WHERE slug = %s", (slug,)).mappings().fetchone()
 
-    cursor.execute("SELECT * FROM projetos WHERE slug = %s", (slug,))
-    projeto = cursor.fetchone()
+        if not projeto:
+            abort(404)
 
-    if not projeto:
-        cursor.close()
-        conn.close()
-        abort(404)
-
-    cursor.execute("SELECT * FROM projeto_imagens WHERE projeto_id = %s", (projeto["id"],))
-    imagens_extras = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+        imagens_extras = conn.exec_driver_sql("SELECT * FROM projeto_imagens WHERE projeto_id = %s", (projeto["id"],)).mappings().all()
 
     return render_template("projeto.html", projeto=projeto, imagens_extras=imagens_extras)
 
@@ -206,20 +171,10 @@ def detalhes_projeto(slug):
 @app.route("/admin", methods=["GET"])
 @login_required
 def admin():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("SELECT * FROM sobre_mim LIMIT 1")
-    sobre = cursor.fetchone()
-
-    cursor.execute("SELECT * FROM projetos ORDER BY criado_em DESC")
-    projetos = cursor.fetchall()
-
-    cursor.execute("SELECT * FROM habilidades")
-    habilidades = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+    with db.engine.connect() as conn:
+        sobre = conn.exec_driver_sql("SELECT * FROM sobre_mim LIMIT 1").mappings().fetchone()
+        projetos = conn.exec_driver_sql("SELECT * FROM projetos ORDER BY criado_em DESC").mappings().all()
+        habilidades = conn.exec_driver_sql("SELECT * FROM habilidades").mappings().all()
 
     msg = request.args.get("msg")
     erro_destaque = request.args.get("erro_destaque")
@@ -263,40 +218,30 @@ def adicionar_projeto():
     tipo_download = request.form.get("tipo_download") or None
     destaque = 1 if "destaque" in request.form else 0
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    with db.engine.begin() as conn:
+        if destaque == 1:
+            res = conn.exec_driver_sql("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1").fetchone()
+            if res[0] >= 3:
+                return redirect(url_for(
+                    "admin",
+                    erro_destaque="Limite de 3 projetos em destaque atingido! Retire o destaque de algum projeto existente."
+                ))
 
-    if destaque == 1:
-        cursor.execute("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1")
-        res = cursor.fetchone()
-        if res["total"] >= 3:
-            cursor.close()
-            conn.close()
-            return redirect(url_for(
-                "admin",
-                erro_destaque="Limite de 3 projetos em destaque atingido! Retire o destaque de algum projeto existente."
-            ))
+        imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
 
-    imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
+        query = """
+            INSERT INTO projetos (titulo, slug, descricao_curta, descricao_longa, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor = conn.exec_driver_sql(query, (titulo, slug, descricao_curta, descricao_longa, imagem_capa_path, video_url, link_github, link_deploy, tipo_download, destaque))
+        projeto_id = cursor.lastrowid
 
-    cursor = conn.cursor()
-    query = """
-        INSERT INTO projetos (titulo, slug, descricao_curta, descricao_longa, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-    """
-    cursor.execute(query, (titulo, slug, descricao_curta, descricao_longa, imagem_capa_path, video_url, link_github, link_deploy, tipo_download, destaque))
-    projeto_id = cursor.lastrowid
-
-    if "imagens_extras" in request.files:
-        files = request.files.getlist("imagens_extras")
-        for file in files:
-            img_url = _salvar_upload(file)
-            if img_url:
-                cursor.execute("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (%s, %s)", (projeto_id, img_url))
-
-    conn.commit()
-    cursor.close()
-    conn.close()
+        if "imagens_extras" in request.files:
+            files = request.files.getlist("imagens_extras")
+            for file in files:
+                img_url = _salvar_upload(file)
+                if img_url:
+                    conn.exec_driver_sql("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (%s, %s)", (projeto_id, img_url))
 
     return redirect(url_for("admin", msg="Projeto publicado com sucesso!"))
 
@@ -304,9 +249,6 @@ def adicionar_projeto():
 @app.route("/admin/projeto/editar/<int:id>", methods=["GET", "POST"])
 @login_required
 def editar_projeto(id):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
     if request.method == "POST":
         titulo = request.form["titulo"]
         slug = request.form["slug"]
@@ -318,52 +260,40 @@ def editar_projeto(id):
         tipo_download = request.form.get("tipo_download") or None
         destaque = 1 if "destaque" in request.form else 0
 
-        if destaque == 1:
-            cursor.execute("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1 AND id != %s", (id,))
-            res = cursor.fetchone()
-            if res["total"] >= 3:
-                cursor.close()
-                conn.close()
-                return redirect(url_for("admin", erro_destaque="Limite de 3 projetos em destaque atingido!"))
+        with db.engine.begin() as conn:
+            if destaque == 1:
+                res = conn.exec_driver_sql("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1 AND id != %s", (id,)).fetchone()
+                if res[0] >= 3:
+                    return redirect(url_for("admin", erro_destaque="Limite de 3 projetos em destaque atingido!"))
 
-        imagem_capa_sql = ""
-        valores_extras = []
-        imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
-        if imagem_capa_path:
-            imagem_capa_sql = ", imagem_capa = %s"
-            valores_extras.append(imagem_capa_path)
+            imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
+            
+            if imagem_capa_path:
+                query = """
+                    UPDATE projetos
+                    SET titulo = %s, slug = %s, descricao_curta = %s, descricao_longa = %s, video_url = %s, link_github = %s, link_deploy = %s, tipo_download = %s, destaque = %s, imagem_capa = %s
+                    WHERE id = %s
+                """
+                conn.exec_driver_sql(query, (titulo, slug, descricao_curta, descricao_longa, video_url, link_github, link_deploy, tipo_download, destaque, imagem_capa_path, id))
+            else:
+                query = """
+                    UPDATE projetos
+                    SET titulo = %s, slug = %s, descricao_curta = %s, descricao_longa = %s, video_url = %s, link_github = %s, link_deploy = %s, tipo_download = %s, destaque = %s
+                    WHERE id = %s
+                """
+                conn.exec_driver_sql(query, (titulo, slug, descricao_curta, descricao_longa, video_url, link_github, link_deploy, tipo_download, destaque, id))
 
-        cursor = conn.cursor()
-        query = f"""
-            UPDATE projetos
-            SET titulo = %s, slug = %s, descricao_curta = %s, descricao_longa = %s, video_url = %s, link_github = %s, link_deploy = %s, tipo_download = %s, destaque = %s
-            {imagem_capa_sql}
-            WHERE id = %s
-        """
-        params = [titulo, slug, descricao_curta, descricao_longa, video_url, link_github, link_deploy, tipo_download, destaque]
-        if valores_extras:
-            params.extend(valores_extras)
-        params.append(id)
-
-        cursor.execute(query, tuple(params))
-
-        if "imagens_extras" in request.files:
-            files = request.files.getlist("imagens_extras")
-            for file in files:
-                img_url = _salvar_upload(file)
-                if img_url:
-                    cursor.execute("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (%s, %s)", (id, img_url))
-
-        conn.commit()
-        cursor.close()
-        conn.close()
+            if "imagens_extras" in request.files:
+                files = request.files.getlist("imagens_extras")
+                for file in files:
+                    img_url = _salvar_upload(file)
+                    if img_url:
+                        conn.exec_driver_sql("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (%s, %s)", (id, img_url))
 
         return redirect(url_for("admin", msg="Projeto atualizado com sucesso!"))
 
-    cursor.execute("SELECT * FROM projetos WHERE id = %s", (id,))
-    projeto = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    with db.engine.connect() as conn:
+        projeto = conn.exec_driver_sql("SELECT * FROM projetos WHERE id = %s", (id,)).mappings().fetchone()
 
     if not projeto:
         abort(404)
@@ -374,12 +304,8 @@ def editar_projeto(id):
 @app.route("/admin/projeto/deletar/<int:id>", methods=["POST"])
 @login_required
 def deletar_projeto(id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM projetos WHERE id = %s", (id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    with db.engine.begin() as conn:
+        conn.exec_driver_sql("DELETE FROM projetos WHERE id = %s", (id,))
     return redirect(url_for("admin", msg="Projeto excluído com sucesso!"))
 
 
@@ -392,14 +318,11 @@ def adicionar_habilidade():
     cor_fundo = request.form["cor_fundo"]
     cor_texto = request.form["cor_texto"]
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    query = "INSERT INTO habilidades (nome, categoria, cor, cor_fundo, cor_texto) VALUES (%s, %s, %s, %s, %s)"
-    cursor.execute(query, (nome, categoria, cor, cor_fundo, cor_texto))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
+    with db.engine.begin() as conn:
+        conn.exec_driver_sql(
+            "INSERT INTO habilidades (nome, categoria, cor, cor_fundo, cor_texto) VALUES (%s, %s, %s, %s, %s)",
+            (nome, categoria, cor, cor_fundo, cor_texto)
+        )
     return redirect(url_for("admin", msg="Habilidade adicionada com sucesso!"))
 
 
@@ -412,27 +335,19 @@ def editar_habilidade(id):
     cor_fundo = request.form["cor_fundo"]
     cor_texto = request.form["cor_texto"]
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    query = "UPDATE habilidades SET nome = %s, categoria = %s, cor = %s, cor_fundo = %s, cor_texto = %s WHERE id = %s"
-    cursor.execute(query, (nome, categoria, cor, cor_fundo, cor_texto, id))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
+    with db.engine.begin() as conn:
+        conn.exec_driver_sql(
+            "UPDATE habilidades SET nome = %s, categoria = %s, cor = %s, cor_fundo = %s, cor_texto = %s WHERE id = %s",
+            (nome, categoria, cor, cor_fundo, cor_texto, id)
+        )
     return redirect(url_for("admin", msg="Habilidade atualizada com sucesso!"))
 
 
 @app.route("/admin/habilidade/deletar/<int:id>", methods=["POST"])
 @login_required
 def deletar_habilidade(id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM habilidades WHERE id = %s", (id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-
+    with db.engine.begin() as conn:
+        conn.exec_driver_sql("DELETE FROM habilidades WHERE id = %s", (id,))
     return redirect(url_for("admin", msg="Habilidade excluída com sucesso!"))
 
 
@@ -448,36 +363,30 @@ def atualizar_sobre():
     link_github = request.form["link_github"]
     link_linkedin = request.form["link_linkedin"]
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    with db.engine.begin() as conn:
+        resultado = conn.exec_driver_sql("SELECT id FROM sobre_mim LIMIT 1").fetchone()
+        avatar_path = _salvar_upload(request.files.get("avatar"))
 
-    cursor.execute("SELECT id FROM sobre_mim LIMIT 1")
-    resultado = cursor.fetchone()
-
-    avatar_path = _salvar_upload(request.files.get("avatar"))
-    avatar_sql = ", avatar_url = %s" if avatar_path else ""
-    valores_avatar = [avatar_path] if avatar_path else []
-
-    if resultado:
-        sobre_id = resultado["id"]
-        query = f"""
-            UPDATE sobre_mim
-            SET titulo_principal = %s, subtitulo = %s, texto_home = %s, biografia = %s, localizacao = %s, email_contato = %s, link_github = %s, link_linkedin = %s
-            {avatar_sql}
-            WHERE id = %s
-        """
-        params = [titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin] + valores_avatar + [sobre_id]
-        cursor.execute(query, tuple(params))
-    else:
-        query = """
-            INSERT INTO sobre_mim (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_url)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(query, (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_path))
-
-    conn.commit()
-    cursor.close()
-    conn.close()
+        if resultado:
+            sobre_id = resultado[0]
+            if avatar_path:
+                conn.exec_driver_sql(
+                    """UPDATE sobre_mim SET titulo_principal = %s, subtitulo = %s, texto_home = %s, biografia = %s, 
+                       localizacao = %s, email_contato = %s, link_github = %s, link_linkedin = %s, avatar_url = %s WHERE id = %s""",
+                    (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_path, sobre_id)
+                )
+            else:
+                conn.exec_driver_sql(
+                    """UPDATE sobre_mim SET titulo_principal = %s, subtitulo = %s, texto_home = %s, biografia = %s, 
+                       localizacao = %s, email_contato = %s, link_github = %s, link_linkedin = %s WHERE id = %s""",
+                    (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, sobre_id)
+                )
+        else:
+            conn.exec_driver_sql(
+                """INSERT INTO sobre_mim (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_url)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_path)
+            )
 
     return redirect(url_for("admin", msg="Informações do perfil atualizadas com sucesso!"))
 
