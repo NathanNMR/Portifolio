@@ -80,6 +80,15 @@ DB_CONFIG = {
     "database": os.environ.get("DB_NAME", "portfolio_db"),
 }
 
+# Configuração dinâmica da porta caso utilize banco externo em nuvem (ex: Aiven)
+db_port = os.environ.get("DB_PORT")
+if db_port:
+    DB_CONFIG["port"] = int(db_port)
+
+# Configuração opcional de SSL para bancos remotos que exigem conexão criptografada
+if os.environ.get("DB_HOST", "localhost") != "localhost":
+    DB_CONFIG["ssl_disabled"] = False
+
 if not DB_CONFIG["password"]:
     raise RuntimeError(
         "DB_PASSWORD não definida. Configure-a no arquivo .env "
