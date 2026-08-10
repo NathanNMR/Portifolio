@@ -6,7 +6,8 @@ from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, abort, session, flash
 )
-from flask_migrate import Migrate
+from flask_migrate import Migrate, upgrade as migrate_upgrade, stamp as migrate_stamp
+from sqlalchemy import inspect as sa_inspect
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash
 import bleach
@@ -50,10 +51,59 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db.init_app(app)
 migrate = Migrate(app, db)
 
-# O schema do banco agora é gerenciado por migrações versionadas (Flask-Migrate/Alembic)
-# em vez de CREATE TABLE manual. Veja migrations/ e o comando `flask db upgrade`.
-# Isso garante que alterações de schema (novas colunas, etc.) sejam aplicadas
-# de forma controlada em vez de serem silenciosamente ignoradas em produção.
+
+def _sincronizar_schema():
+    """
+    Sincroniza o schema do banco automaticamente na inicialização da app —
+    necessário porque o plano gratuito do Render não dá acesso a Shell nem
+    a comandos de pre-deploy, então não dá pra rodar `flask db upgrade`
+    manualmente.
+
+    Comportamento:
+    - Se o banco já tem a tabela de controle do Alembic (`alembic_version`),
+      apenas aplica migrações pendentes normalmente (idempotente: não faz
+      nada se já estiver tudo em dia).
+    - Se não tem (banco criado antes da migração para Flask-Migrate, ou
+      banco novo em branco), cria as tabelas/colunas que estiverem
+      faltando comparando com os models, e então marca o banco como
+      já sincronizado com a migração atual (stamp), sem tentar recriar
+      o que já existe.
+    """
+    with app.app_context():
+        inspector = sa_inspect(db.engine)
+        tabelas_existentes = inspector.get_table_names()
+
+        if "alembic_version" in tabelas_existentes:
+            migrate_upgrade()
+            print("[schema] Migrações aplicadas (banco já era gerenciado por Alembic).")
+            return
+
+        mudou_algo = False
+        for tabela in db.metadata.sorted_tables:
+            if tabela.name not in tabelas_existentes:
+                tabela.create(bind=db.engine)
+                print(f"[schema] Tabela '{tabela.name}' criada.")
+                mudou_algo = True
+                continue
+
+            colunas_atuais = {c["name"] for c in inspector.get_columns(tabela.name)}
+            for coluna in tabela.columns:
+                if coluna.name in colunas_atuais:
+                    continue
+                tipo_sql = coluna.type.compile(dialect=db.engine.dialect)
+                with db.engine.begin() as conn:
+                    conn.exec_driver_sql(
+                        f"ALTER TABLE {tabela.name} ADD COLUMN {coluna.name} {tipo_sql}"
+                    )
+                print(f"[schema] Coluna '{coluna.name}' adicionada em '{tabela.name}'.")
+                mudou_algo = True
+
+        migrate_stamp()
+        status = "colunas/tabelas ajustadas" if mudou_algo else "já estava em dia"
+        print(f"[schema] Banco sincronizado com a migração atual ({status}).")
+
+
+_sincronizar_schema()
 
 EXTENSOES_PERMITIDAS = {"png", "jpg", "jpeg", "webp"}
 
