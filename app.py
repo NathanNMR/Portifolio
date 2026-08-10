@@ -47,12 +47,12 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-# Criação automática das tabelas e colunas necessárias no banco da Aiven
+# Criação automática das tabelas sem o comando IF NOT EXISTS (tratado via try-except)
 with app.app_context():
     try:
         with db.engine.begin() as conn:
             conn.exec_driver_sql("""
-                CREATE TABLE IF NOT EXISTS sobre_mim (
+                CREATE TABLE sobre_mim (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     titulo_principal VARCHAR(255) NOT NULL,
                     subtitulo VARCHAR(255),
@@ -66,7 +66,7 @@ with app.app_context():
                 );
             """)
             conn.exec_driver_sql("""
-                CREATE TABLE IF NOT EXISTS projetos (
+                CREATE TABLE projetos (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     titulo VARCHAR(255) NOT NULL,
                     slug VARCHAR(255) NOT NULL UNIQUE,
@@ -82,7 +82,7 @@ with app.app_context():
                 );
             """)
             conn.exec_driver_sql("""
-                CREATE TABLE IF NOT EXISTS projeto_imagens (
+                CREATE TABLE projeto_imagens (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     projeto_id INT,
                     imagem_url VARCHAR(255) NOT NULL,
@@ -90,7 +90,7 @@ with app.app_context():
                 );
             """)
             conn.exec_driver_sql("""
-                CREATE TABLE IF NOT EXISTS habilidades (
+                CREATE TABLE habilidades (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     nome VARCHAR(100) NOT NULL,
                     categoria VARCHAR(100),
@@ -101,7 +101,7 @@ with app.app_context():
                 );
             """)
     except Exception as e:
-        print(f"Erro ao criar tabelas automaticamente: {e}")
+        print(f"Nota: As tabelas já podem existir ou ocorreu um aviso: {e}")
 
 EXTENSOES_PERMITIDAS = {"png", "jpg", "jpeg", "webp"}
 
@@ -193,7 +193,6 @@ def home():
             LIMIT 3
         """).mappings().all()
 
-        # Busca apenas as habilidades marcadas com destaque para exibir na home
         habilidades_destaque = conn.exec_driver_sql("SELECT * FROM habilidades WHERE destaque = 1").mappings().all()
 
     return render_template("index.html", sobre=sobre, projetos=projetos, habilidades_destaque=habilidades_destaque)
@@ -210,7 +209,6 @@ def todos_projetos():
 
 @app.route("/habilidades")
 def listar_habilidades():
-    # Redireciona para a home na seção de habilidades para evitar erro 404
     return redirect(url_for("home") + "#habilidades")
 
 
