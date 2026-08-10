@@ -3,3 +3,4 @@ mysql-connector-python==8.3.0
 python-dotenv==1.0.1
 bleach==6.1.0
 Pillow>=10.2.0
+gunicorn==21.2.0
