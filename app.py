@@ -193,9 +193,10 @@ def home():
             LIMIT 3
         """).mappings().all()
 
-        habilidades = conn.exec_driver_sql("SELECT * FROM habilidades").mappings().all()
+        # Busca apenas as habilidades marcadas com destaque para exibir na home
+        habilidades_destaque = conn.exec_driver_sql("SELECT * FROM habilidades WHERE destaque = 1").mappings().all()
 
-    return render_template("index.html", sobre=sobre, projetos=projetos, habilidades=habilidades)
+    return render_template("index.html", sobre=sobre, projetos=projetos, habilidades_destaque=habilidades_destaque)
 
 
 @app.route("/projetos")
@@ -205,6 +206,12 @@ def todos_projetos():
         projetos = conn.exec_driver_sql("SELECT * FROM projetos ORDER BY criado_em DESC").mappings().all()
 
     return render_template("todos_projetos.html", sobre=sobre, projetos=projetos)
+
+
+@app.route("/habilidades")
+def listar_habilidades():
+    # Redireciona para a home na seção de habilidades para evitar erro 404
+    return redirect(url_for("home") + "#habilidades")
 
 
 @app.route("/projeto/<string:slug>")
@@ -379,22 +386,25 @@ def adicionar_habilidade():
     return redirect(url_for("admin", msg="Habilidade adicionada com sucesso!"))
 
 
-@app.route("/admin/habilidade/editar/<int:id>", methods=["POST"])
+@app.route("/admin/habilidade/editar/<int:id>", methods=["GET", "POST"])
 @login_required
 def editar_habilidade(id):
-    nome = request.form["nome"]
-    categoria = request.form["categoria"]
-    cor = request.form["cor"]
-    cor_fundo = request.form["cor_fundo"]
-    cor_texto = request.form["cor_texto"]
-    destaque = 1 if "destaque" in request.form else 0
+    if request.method == "POST":
+        nome = request.form["nome"]
+        categoria = request.form["categoria"]
+        cor = request.form["cor"]
+        cor_fundo = request.form["cor_fundo"]
+        cor_texto = request.form["cor_texto"]
+        destaque = 1 if "destaque" in request.form else 0
 
-    with db.engine.begin() as conn:
-        conn.exec_driver_sql(
-            "UPDATE habilidades SET nome = %s, categoria = %s, cor = %s, cor_fundo = %s, cor_texto = %s, destaque = %s WHERE id = %s",
-            (nome, categoria, cor, cor_fundo, cor_texto, destaque, id)
-        )
-    return redirect(url_for("admin", msg="Habilidade atualizada com sucesso!"))
+        with db.engine.begin() as conn:
+            conn.exec_driver_sql(
+                "UPDATE habilidades SET nome = %s, categoria = %s, cor = %s, cor_fundo = %s, cor_texto = %s, destaque = %s WHERE id = %s",
+                (nome, categoria, cor, cor_fundo, cor_texto, destaque, id)
+            )
+        return redirect(url_for("admin", msg="Habilidade atualizada com sucesso!"))
+    
+    return redirect(url_for("admin"))
 
 
 @app.route("/admin/habilidade/deletar/<int:id>", methods=["POST"])
