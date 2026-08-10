@@ -206,6 +206,14 @@ def todos_projetos():
     return render_template("todos_projetos.html", sobre=sobre, projetos=projetos)
 
 
+@app.route("/habilidades")
+def listar_habilidades():
+    with db.engine.connect() as conn:
+        sobre = conn.exec_driver_sql("SELECT * FROM sobre_mim LIMIT 1").mappings().fetchone()
+        habilidades = conn.exec_driver_sql("SELECT * FROM habilidades").mappings().all()
+    return render_template("habilidades.html", sobre=sobre, habilidades=habilidades)
+
+
 @app.route("/projeto/<string:slug>")
 def detalhes_projeto(slug):
     with db.engine.connect() as conn:
