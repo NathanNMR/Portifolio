@@ -6,13 +6,15 @@ from functools import wraps
 from flask import (
     Flask, render_template, request, redirect, url_for, abort, session, flash
 )
-from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash
 import bleach
 from bleach.css_sanitizer import CSSSanitizer
 from PIL import Image
 from dotenv import load_dotenv
+
+from models import db
 
 load_dotenv()
 
@@ -45,63 +47,13 @@ else:
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-db = SQLAlchemy(app)
+db.init_app(app)
+migrate = Migrate(app, db)
 
-# Criação automática das tabelas sem o comando IF NOT EXISTS (tratado via try-except)
-with app.app_context():
-    try:
-        with db.engine.begin() as conn:
-            conn.exec_driver_sql("""
-                CREATE TABLE sobre_mim (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    titulo_principal VARCHAR(255) NOT NULL,
-                    subtitulo VARCHAR(255),
-                    texto_home TEXT,
-                    biografia TEXT,
-                    localizacao VARCHAR(100),
-                    email_contato VARCHAR(100),
-                    link_github VARCHAR(255),
-                    link_linkedin VARCHAR(255),
-                    avatar_url VARCHAR(255)
-                );
-            """)
-            conn.exec_driver_sql("""
-                CREATE TABLE projetos (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    titulo VARCHAR(255) NOT NULL,
-                    slug VARCHAR(255) NOT NULL UNIQUE,
-                    descricao_curta VARCHAR(255) NOT NULL,
-                    descricao_longa TEXT,
-                    imagem_capa VARCHAR(255),
-                    video_url VARCHAR(255),
-                    link_github VARCHAR(255),
-                    link_deploy VARCHAR(255),
-                    tipo_download VARCHAR(50),
-                    destaque TINYINT DEFAULT 0,
-                    criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            conn.exec_driver_sql("""
-                CREATE TABLE projeto_imagens (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    projeto_id INT,
-                    imagem_url VARCHAR(255) NOT NULL,
-                    FOREIGN KEY (projeto_id) REFERENCES projetos(id) ON DELETE CASCADE
-                );
-            """)
-            conn.exec_driver_sql("""
-                CREATE TABLE habilidades (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    nome VARCHAR(100) NOT NULL,
-                    categoria VARCHAR(100),
-                    cor VARCHAR(50),
-                    cor_fundo VARCHAR(50),
-                    cor_texto VARCHAR(50),
-                    destaque TINYINT DEFAULT 0
-                );
-            """)
-    except Exception as e:
-        print(f"Nota: As tabelas já podem existir ou ocorreu um aviso: {e}")
+# O schema do banco agora é gerenciado por migrações versionadas (Flask-Migrate/Alembic)
+# em vez de CREATE TABLE manual. Veja migrations/ e o comando `flask db upgrade`.
+# Isso garante que alterações de schema (novas colunas, etc.) sejam aplicadas
+# de forma controlada em vez de serem silenciosamente ignoradas em produção.
 
 EXTENSOES_PERMITIDAS = {"png", "jpg", "jpeg", "webp"}
 
