@@ -36,12 +36,28 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+from sqlalchemy.engine import make_url
+
 # Configuração do Banco de Dados via SQLAlchemy com suporte a Aiven (PyMySQL + SSL)
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
+    # Remove espaços, quebras de linha e aspas que costumam sobrar ao colar
+    # a connection string em painéis como o do Render.
+    database_url = database_url.strip().strip('"').strip("'")
     if database_url.startswith("mysql://"):
         database_url = database_url.replace("mysql://", "mysql+pymysql://", 1)
     database_url = database_url.split("?")[0] + "?ssl_disabled=false"
+
+    try:
+        make_url(database_url)
+    except Exception as e:
+        # Uma DATABASE_URL malformada não pode derrubar o processo inteiro —
+        # sem isso, o Gunicorn nunca abre a porta e o Render mata o deploy.
+        print(f"[config] AVISO: DATABASE_URL inválida ou malformada ({e}).")
+        print("[config] Confira a variável no painel do Render — copie a Service "
+              "URI direto da Aiven, sem aspas nem espaços extras.")
+        print("[config] Usando SQLite local temporário para o app conseguir subir.")
+        database_url = "sqlite:///portfolio_local.db"
 else:
     database_url = "sqlite:///portfolio_local.db"
 
