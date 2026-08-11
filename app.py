@@ -103,7 +103,16 @@ def _sincronizar_schema():
         print(f"[schema] Banco sincronizado com a migração atual ({status}).")
 
 
-_sincronizar_schema()
+try:
+    _sincronizar_schema()
+except Exception as e:
+    # Não deixa uma falha de conexão (banco fora do ar, DNS instável, etc.)
+    # impedir o processo de subir — sem isso, o Gunicorn nunca chega a abrir
+    # a porta e o Render mata o deploy com "No open ports detected", mesmo
+    # que o problema seja só temporário no banco.
+    print(f"[schema] AVISO: não foi possível sincronizar o schema na inicialização: {e}")
+    print("[schema] A aplicação vai subir mesmo assim. Rotas que dependem do banco "
+          "vão falhar até a conexão ser restabelecida (reinicie o serviço depois).")
 
 EXTENSOES_PERMITIDAS = {"png", "jpg", "jpeg", "webp"}
 
