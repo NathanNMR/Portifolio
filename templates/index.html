@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nathan Moreira Ramos — Portfólio</title>
+    <meta name="description" content="{{ sobre.subtitulo if sobre and sobre.subtitulo else 'Desenvolvedor e criador de sistemas.' }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -25,34 +29,67 @@
     </header>
 
     <section class="hero">
-        {% if sobre and sobre.avatar_url %}
-        <div style="margin-bottom: 2rem;">
-            <img src="{{ sobre.avatar_url }}" alt="Avatar" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-color); box-shadow: 0 10px 25px var(--accent-glow);">
+        <div>
+            {% if sobre and sobre.avatar_url %}
+            <img src="{{ sobre.avatar_url }}" alt="Foto de {{ sobre.titulo_principal }}" class="hero-avatar">
+            {% endif %}
+
+            <div class="eyebrow"><span class="dot"></span> STATUS: ONLINE</div>
+
+            <h1>{{ sobre.titulo_principal if sobre else 'Desenvolvedor & criador de sistemas.' }}</h1>
+
+            {% if sobre and sobre.subtitulo %}
+            <p class="subtitle">{{ sobre.subtitulo }}</p>
+            {% endif %}
+
+            <p class="lead">{{ sobre.texto_home if sobre and sobre.texto_home else sobre.biografia if sobre else 'Transformando ideias em aplicações robustas, limpas e funcionais.' }}</p>
+
+            <div class="hero-cta">
+                <a href="/projetos" class="btn">Ver projetos</a>
+                <a href="#contato" class="btn" style="background: transparent; color: var(--text-color); border-color: var(--gray-border-strong);">Entrar em contato</a>
+            </div>
         </div>
-        {% endif %}
-        <h1>{{ sobre.titulo_principal if sobre else 'Desenvolvedor & Criador de Sistemas.' }}</h1>
-        {% if sobre and sobre.subtitulo %}
-        <p style="font-size: 1.15rem; color: var(--accent-color); font-weight: 600; margin-bottom: 0.8rem;">{{ sobre.subtitulo }}</p>
-        {% endif %}
-        <p>{{ sobre.texto_home if sobre and sobre.texto_home else sobre.biografia if sobre else 'Transformando ideias em aplicações robustas, limpas e funcionais.' }}</p>
+
+        <div class="terminal-panel">
+            <div class="terminal-titlebar">
+                <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
+                <span class="tlabel">status.sh — nathan@sistemas</span>
+            </div>
+            <div class="terminal-body">
+                <div class="terminal-line prompt">whoami</div>
+                <div class="terminal-line result">{{ sobre.titulo_principal if sobre else 'Nathan Moreira Ramos' }}</div>
+                <div class="terminal-line prompt">status --check</div>
+                <div class="terminal-line result">{{ habilidades_destaque|length }} tecnologia{{ 's' if habilidades_destaque|length != 1 else '' }} em destaque</div>
+                <div class="terminal-line result">{{ projetos|length }} projeto{{ 's' if projetos|length != 1 else '' }} publicado{{ 's' if projetos|length != 1 else '' }}</div>
+                {% if sobre and sobre.localizacao %}
+                <div class="terminal-line result">localização: {{ sobre.localizacao }}</div>
+                {% endif %}
+                <div class="terminal-line prompt">_<span class="cursor-blink"></span></div>
+            </div>
+        </div>
     </section>
 
     <section id="projetos">
         <div class="section-header">
-            <h2 class="section-title">Projetos em Destaque</h2>
-            <a href="/projetos" class="view-all-link">Ver todos os projetos →</a>
+            <h2 class="section-title">Projetos em destaque</h2>
+            <a href="/projetos" class="view-all-link">Ver todos →</a>
         </div>
         <div class="projects-grid">
             {% for projeto in projetos %}
             <a href="/projeto/{{ projeto.slug }}" class="project-card">
-                {% if projeto.imagem_capa %}
-                <img src="{{ projeto.imagem_capa }}" alt="{{ projeto.titulo }}">
-                {% else %}
-                <div class="img-placeholder">Sem imagem</div>
-                {% endif %}
-                <h3>{{ projeto.titulo }}</h3>
-                <p>{{ projeto.descricao_curta }}</p>
-                <div class="project-links">Explorar Projeto →</div>
+                <div class="card-path">/projetos/{{ projeto.slug }}</div>
+                <div class="card-media">
+                    {% if projeto.imagem_capa %}
+                    <img src="{{ projeto.imagem_capa }}" alt="{{ projeto.titulo }}" loading="lazy">
+                    {% else %}
+                    <div class="img-placeholder">sem imagem</div>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h3>{{ projeto.titulo }}</h3>
+                    <p>{{ projeto.descricao_curta }}</p>
+                    <div class="project-links">Explorar →</div>
+                </div>
             </a>
             {% endfor %}
         </div>
@@ -60,19 +97,16 @@
 
     <section id="habilidades">
         <div class="section-header">
-            <h2 class="section-title">Habilidades em Destaque</h2>
+            <h2 class="section-title">Habilidades em destaque</h2>
         </div>
-        
-        <div class="projects-grid" style="margin-bottom: 3rem;">
+        <div class="skills-grid">
             {% for hab in habilidades_destaque %}
-            <div class="project-card" style="cursor: default; display: flex; flex-direction: column; justify-content: space-between; border-left: 4px solid {{ hab.cor if hab.cor else 'var(--accent-color)' }}; background-color: {{ hab.cor_fundo if hab.cor_fundo else 'var(--card-bg)' }}; color: {{ hab.cor_texto if hab.cor_texto else 'var(--text-color)' }};">
-                <div>
-                    <span style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); font-weight: 600;">{{ hab.categoria }}</span>
-                    <h3 style="margin-top: 0.4rem; font-size: 1.25rem;">{{ hab.nome }}</h3>
-                </div>
-                <div style="margin-top: 1.5rem; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--accent-color);">
-                    ● Habilidade Ativa
-                </div>
+            <div class="skill-tag" style="--custom-border: {{ hab.cor if hab.cor else 'var(--accent-color)' }}; background-color: {{ hab.cor_fundo if hab.cor_fundo else 'var(--card-bg)' }}; color: {{ hab.cor_texto if hab.cor_texto else 'var(--text-color)' }};">
+                <span class="skill-led"></span>
+                <span class="skill-text">
+                    <span class="skill-name">{{ hab.nome }}</span>
+                    <span class="skill-cat">{{ hab.categoria }}</span>
+                </span>
             </div>
             {% endfor %}
         </div>
@@ -80,17 +114,21 @@
 
     <section id="sobre">
         <div class="section-header">
-            <h2 class="section-title">Sobre Mim</h2>
+            <h2 class="section-title">Sobre mim</h2>
         </div>
         <div class="about-content">
             <p>{{ sobre.biografia if sobre else 'Estudante de Análise e Desenvolvimento de Sistemas focado em engenharia de software limpa.' }}</p>
             {% if sobre and sobre.localizacao %}
-            <p style="margin-top: 1.5rem; color: var(--text-muted); font-size: 0.95rem;">📍 Localização: {{ sobre.localizacao }}</p>
+            <div class="about-meta">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.3"/></svg>
+                <span class="meta-label">Localização</span> {{ sobre.localizacao }}
+            </div>
             {% endif %}
         </div>
     </section>
 
     <footer id="contato">
+        <div class="eyebrow"><span class="dot"></span> CONTATO</div>
         <p>Vamos trabalhar juntos? Entre em contato:</p>
         <a href="mailto:{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}"
             class="footer-email">
@@ -103,6 +141,10 @@
         <div class="social-links">
             {% if sobre and sobre.link_github %}<a href="{{ sobre.link_github }}" target="_blank">GitHub</a>{% endif %}
             {% if sobre and sobre.link_linkedin %}<a href="{{ sobre.link_linkedin }}" target="_blank">LinkedIn</a>{% endif %}
+        </div>
+        <div class="footer-bottom">
+            <span>NATHAN MOREIRA RAMOS</span>
+            <span>SYSTEM STATUS: ONLINE</span>
         </div>
     </footer>
 

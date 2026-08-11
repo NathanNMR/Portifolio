@@ -6,6 +6,7 @@ __pycache__/
 *.pyc
 venv/
 .venv/
+instance/
 
 # Uploads de usuário (opcional: remova esta linha se quiser versionar as imagens)
 static/uploads/*

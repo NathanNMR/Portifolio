@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Todas as Habilidades — Nathan Moreira Ramos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -25,23 +28,34 @@
     </header>
 
     <main>
-        <div style="margin-bottom: 2.5rem;">
-            <h1 style="font-size: 2.8rem; letter-spacing: -1.5px; margin-bottom: 0.8rem;">Tech Stack & Habilidades</h1>
-            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem;">Lista completa de linguagens, frameworks e ferramentas dominadas.</p>
-            <input type="text" id="searchInput" class="search-bar" placeholder="Pesquisar habilidade ou categoria..." onkeyup="buscarHabilidades()">
+        <div style="margin-bottom: 2rem;">
+            <div class="eyebrow"><span class="dot"></span> {{ habilidades|length }} COMPONENTE{{ 'S' if habilidades|length != 1 else '' }} REGISTRADO{{ 'S' if habilidades|length != 1 else '' }}</div>
+            <h1 style="font-family: var(--font-sans); font-size: 2.6rem; font-weight: 700; letter-spacing: -1.2px; margin-bottom: 0.8rem;">Tech stack & habilidades</h1>
+            <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 2.2rem; max-width: 560px;">Lista completa de linguagens, frameworks e ferramentas dominadas.</p>
+            <div class="search-bar-wrap">
+                <input type="text" id="searchInput" class="search-bar" placeholder="buscar habilidade ou categoria..." onkeyup="buscarHabilidades()">
+            </div>
         </div>
 
         <div class="skills-grid" id="skillsGrid">
             {% for hab in habilidades %}
-            <div class="skill-tag" data-title="{{ hab.nome | lower }}" data-categoria="{{ hab.categoria | lower }}" style="--custom-border: {{ hab.cor if hab.cor else 'var(--accent-color)' }}; --custom-bg: {{ hab.cor_fundo if hab.cor_fundo else 'var(--card-bg)' }}; --custom-text: {{ hab.cor_texto if hab.cor_texto else 'var(--text-color)' }};">
-                <span class="skill-name">{{ hab.nome }}</span>
-                <span class="skill-cat">{{ hab.categoria }}</span>
+            <div class="skill-tag" data-title="{{ hab.nome | lower }}" data-categoria="{{ hab.categoria | lower }}" style="--custom-border: {{ hab.cor if hab.cor else 'var(--accent-color)' }}; background-color: {{ hab.cor_fundo if hab.cor_fundo else 'var(--card-bg)' }}; color: {{ hab.cor_texto if hab.cor_texto else 'var(--text-color)' }};">
+                <span class="skill-led"></span>
+                <span class="skill-text">
+                    <span class="skill-name">{{ hab.nome }}</span>
+                    <span class="skill-cat">{{ hab.categoria }}</span>
+                </span>
             </div>
             {% endfor %}
         </div>
+
+        {% if not habilidades %}
+        <p style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.9rem;">// nenhuma habilidade cadastrada ainda.</p>
+        {% endif %}
     </main>
 
     <footer>
+        <div class="eyebrow"><span class="dot"></span> CONTATO</div>
         <p>Contato profissional:</p>
         <a href="mailto:{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}" class="footer-email" data-email-modal data-email="{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}">
             <svg class="mail-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4.5" width="20" height="15" rx="1.5"/><path d="m2.5 5.5 9.5 8 9.5-8"/></svg>

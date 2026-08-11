@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Todos os Projetos — Nathan Moreira Ramos</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -18,39 +21,50 @@
                 <a href="/#contato">Contato</a>
             </nav>
             <button class="theme-toggle" onclick="alternarTema()" aria-label="Alternar Tema">
-                <!-- Ícone de Sol -->
                 <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zM11 1h2v3h-2V1zm0 19h2v3h-2v-3zM3.51 4.92l2.12 2.12 1.41-1.41L4.92 3.51 3.51 4.92zm14.85 14.85l2.12 2.12 1.41-1.41-2.12-2.12-1.41 1.41zM1 11h3v2H1v-2zm19 0h3v2h-3v-2zM4.92 19.08l1.41-1.41 2.12 2.12-1.41 1.41-2.12-2.12zm14.85-14.85l1.41 1.41 2.12-2.12-1.41-1.41-2.12 2.12z"/></svg>
-                <!-- Ícone de Lua -->
                 <svg class="moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             </button>
         </div>
     </header>
 
     <main>
-        <div style="margin-bottom: 2.5rem;">
-            <h1 style="font-size: 2.8rem; letter-spacing: -1.5px; margin-bottom: 0.8rem;">Repositório de Projetos</h1>
-            <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem;">Lista completa de todos os sistemas, aplicações e trabalhos desenvolvidos.</p>
-            
-            <input type="text" id="searchInput" class="search-bar" placeholder="Pesquisar projeto por nome ou tecnologia..." onkeyup="buscarProjetos()">
+        <div style="margin-bottom: 2rem;">
+            <div class="eyebrow"><span class="dot"></span> {{ projetos|length }} PROJETO{{ 'S' if projetos|length != 1 else '' }} PUBLICADO{{ 'S' if projetos|length != 1 else '' }}</div>
+            <h1 style="font-family: var(--font-sans); font-size: 2.6rem; font-weight: 700; letter-spacing: -1.2px; margin-bottom: 0.8rem;">Repositório de projetos</h1>
+            <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 2.2rem; max-width: 560px;">Lista completa de sistemas, aplicações e trabalhos desenvolvidos.</p>
+
+            <div class="search-bar-wrap">
+                <input type="text" id="searchInput" class="search-bar" placeholder="buscar por nome ou tecnologia..." onkeyup="buscarProjetos()">
+            </div>
         </div>
 
         <div class="projects-grid" id="projectsGrid">
             {% for projeto in projetos %}
             <a href="/projeto/{{ projeto.slug }}" class="project-card" data-title="{{ projeto.titulo | lower }}" data-desc="{{ projeto.descricao_curta | lower }}">
-                {% if projeto.imagem_capa %}
-                <img src="{{ projeto.imagem_capa }}" alt="{{ projeto.titulo }}">
-                {% else %}
-                <div class="img-placeholder">Sem imagem</div>
-                {% endif %}
-                <h3>{{ projeto.titulo }}</h3>
-                <p>{{ projeto.descricao_curta }}</p>
-                <div class="project-links">Explorar Projeto →</div>
+                <div class="card-path">/projetos/{{ projeto.slug }}</div>
+                <div class="card-media">
+                    {% if projeto.imagem_capa %}
+                    <img src="{{ projeto.imagem_capa }}" alt="{{ projeto.titulo }}" loading="lazy">
+                    {% else %}
+                    <div class="img-placeholder">sem imagem</div>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h3>{{ projeto.titulo }}</h3>
+                    <p>{{ projeto.descricao_curta }}</p>
+                    <div class="project-links">Explorar →</div>
+                </div>
             </a>
             {% endfor %}
         </div>
+
+        {% if not projetos %}
+        <p style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.9rem;">// nenhum projeto publicado ainda.</p>
+        {% endif %}
     </main>
 
     <footer>
+        <div class="eyebrow"><span class="dot"></span> CONTATO</div>
         <p>Contato profissional:</p>
         <a href="mailto:{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}"
            class="footer-email"
