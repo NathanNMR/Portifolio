@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editar Projeto — Painel Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         .admin-section {
@@ -11,7 +14,7 @@
             border: 1px solid var(--gray-border);
             padding: 2.5rem;
             margin-bottom: 3rem;
-            border-radius: 16px;
+            border-radius: 3px;
         }
         .btn-secondary {
             background: transparent;
@@ -24,7 +27,7 @@
             transition: var(--transition);
             text-decoration: none;
             display: inline-block;
-            border-radius: 10px;
+            border-radius: 3px;
         }
         .btn-secondary:hover {
             border-color: var(--accent-color);
@@ -37,7 +40,7 @@
             background: var(--bg-color);
             color: inherit;
             font-size: 1rem;
-            border-radius: 10px;
+            border-radius: 3px;
             outline: none;
             transition: var(--transition);
         }

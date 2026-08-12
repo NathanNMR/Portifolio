@@ -6,7 +6,7 @@
     <title>Todos os Projetos — Nathan Moreira Ramos</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
@@ -30,10 +30,11 @@
     <main>
         <div style="margin-bottom: 2rem;">
             <div class="eyebrow"><span class="dot"></span> {{ projetos|length }} PROJETO{{ 'S' if projetos|length != 1 else '' }} PUBLICADO{{ 'S' if projetos|length != 1 else '' }}</div>
-            <h1 style="font-family: var(--font-sans); font-size: 2.6rem; font-weight: 700; letter-spacing: -1.2px; margin-bottom: 0.8rem;">Repositório de projetos</h1>
+            <h1 style="font-family: var(--font-display); font-size: 3rem; font-weight: 700; letter-spacing: 0.2px; margin-bottom: 0.8rem;">Repositório de projetos</h1>
             <p style="color: var(--text-muted); font-size: 1.05rem; margin-bottom: 2.2rem; max-width: 560px;">Lista completa de sistemas, aplicações e trabalhos desenvolvidos.</p>
 
             <div class="search-bar-wrap">
+                <svg class="search-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
                 <input type="text" id="searchInput" class="search-bar" placeholder="buscar por nome ou tecnologia..." onkeyup="buscarProjetos()">
             </div>
         </div>

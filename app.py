@@ -1,13 +1,14 @@
 import os
 import uuid
 import re
+from datetime import datetime
 from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect, url_for, abort, session, flash
 )
 from flask_migrate import Migrate, upgrade as migrate_upgrade, stamp as migrate_stamp
-from sqlalchemy import inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect, text
 from werkzeug.utils import secure_filename
 from werkzeug.security import check_password_hash
 import bleach
@@ -255,15 +256,38 @@ def listar_habilidades():
     return render_template("todas_habilidades.html", sobre=sobre, habilidades=habilidades)
 
 
+def _normalizar_data(valor):
+    """
+    Garante que 'criado_em' seja sempre um datetime real antes de ir para o
+    template (que chama .strftime nele). Em MySQL o driver já devolve um
+    datetime.datetime; no fallback SQLite o valor volta como string, o que
+    quebrava a página de detalhe do projeto com 'str object has no
+    attribute strftime'.
+    """
+    if valor is None or isinstance(valor, datetime):
+        return valor
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(str(valor), fmt)
+        except ValueError:
+            continue
+    return valor
+
+
 @app.route("/projeto/<string:slug>")
 def detalhes_projeto(slug):
     with db.engine.connect() as conn:
-        projeto = conn.exec_driver_sql("SELECT * FROM projetos WHERE slug = %s", (slug,)).mappings().fetchone()
+        projeto = conn.execute(text("SELECT * FROM projetos WHERE slug = :slug"), {"slug": slug}).mappings().fetchone()
 
         if not projeto:
             abort(404)
 
-        imagens_extras = conn.exec_driver_sql("SELECT * FROM projeto_imagens WHERE projeto_id = %s", (projeto["id"],)).mappings().all()
+        imagens_extras = conn.execute(
+            text("SELECT * FROM projeto_imagens WHERE projeto_id = :pid"), {"pid": projeto["id"]}
+        ).mappings().all()
+
+    projeto = dict(projeto)
+    projeto["criado_em"] = _normalizar_data(projeto.get("criado_em"))
 
     return render_template("projeto.html", projeto=projeto, imagens_extras=imagens_extras)
 
@@ -320,7 +344,7 @@ def adicionar_projeto():
 
     with db.engine.begin() as conn:
         if destaque == 1:
-            res = conn.exec_driver_sql("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1").fetchone()
+            res = conn.execute(text("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1")).fetchone()
             if res[0] >= 3:
                 return redirect(url_for(
                     "admin",
@@ -329,11 +353,16 @@ def adicionar_projeto():
 
         imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
 
-        query = """
+        query = text("""
             INSERT INTO projetos (titulo, slug, descricao_curta, descricao_longa, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cursor = conn.exec_driver_sql(query, (titulo, slug, descricao_curta, descricao_longa, imagem_capa_path, video_url, link_github, link_deploy, tipo_download, destaque))
+            VALUES (:titulo, :slug, :descricao_curta, :descricao_longa, :imagem_capa, :video_url, :link_github, :link_deploy, :tipo_download, :destaque)
+        """)
+        cursor = conn.execute(query, {
+            "titulo": titulo, "slug": slug, "descricao_curta": descricao_curta,
+            "descricao_longa": descricao_longa, "imagem_capa": imagem_capa_path,
+            "video_url": video_url, "link_github": link_github, "link_deploy": link_deploy,
+            "tipo_download": tipo_download, "destaque": destaque
+        })
         projeto_id = cursor.lastrowid
 
         if "imagens_extras" in request.files:
@@ -341,7 +370,10 @@ def adicionar_projeto():
             for file in files:
                 img_url = _salvar_upload(file)
                 if img_url:
-                    conn.exec_driver_sql("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (%s, %s)", (projeto_id, img_url))
+                    conn.execute(
+                        text("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (:pid, :url)"),
+                        {"pid": projeto_id, "url": img_url}
+                    )
 
     return redirect(url_for("admin", msg="Projeto publicado com sucesso!"))
 
@@ -362,38 +394,51 @@ def editar_projeto(id):
 
         with db.engine.begin() as conn:
             if destaque == 1:
-                res = conn.exec_driver_sql("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1 AND id != %s", (id,)).fetchone()
+                res = conn.execute(
+                    text("SELECT COUNT(*) as total FROM projetos WHERE destaque = 1 AND id != :id"), {"id": id}
+                ).fetchone()
                 if res[0] >= 3:
                     return redirect(url_for("admin", erro_destaque="Limite de 3 projetos em destaque atingido!"))
 
             imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
-            
+
+            params = {
+                "titulo": titulo, "slug": slug, "descricao_curta": descricao_curta,
+                "descricao_longa": descricao_longa, "video_url": video_url,
+                "link_github": link_github, "link_deploy": link_deploy,
+                "tipo_download": tipo_download, "destaque": destaque, "id": id
+            }
+
             if imagem_capa_path:
-                query = """
+                query = text("""
                     UPDATE projetos
-                    SET titulo = %s, slug = %s, descricao_curta = %s, descricao_longa = %s, video_url = %s, link_github = %s, link_deploy = %s, tipo_download = %s, destaque = %s, imagem_capa = %s
-                    WHERE id = %s
-                """
-                conn.exec_driver_sql(query, (titulo, slug, descricao_curta, descricao_longa, video_url, link_github, link_deploy, tipo_download, destaque, imagem_capa_path, id))
+                    SET titulo = :titulo, slug = :slug, descricao_curta = :descricao_curta, descricao_longa = :descricao_longa, video_url = :video_url, link_github = :link_github, link_deploy = :link_deploy, tipo_download = :tipo_download, destaque = :destaque, imagem_capa = :imagem_capa
+                    WHERE id = :id
+                """)
+                params["imagem_capa"] = imagem_capa_path
+                conn.execute(query, params)
             else:
-                query = """
+                query = text("""
                     UPDATE projetos
-                    SET titulo = %s, slug = %s, descricao_curta = %s, descricao_longa = %s, video_url = %s, link_github = %s, link_deploy = %s, tipo_download = %s, destaque = %s
-                    WHERE id = %s
-                """
-                conn.exec_driver_sql(query, (titulo, slug, descricao_curta, descricao_longa, video_url, link_github, link_deploy, tipo_download, destaque, id))
+                    SET titulo = :titulo, slug = :slug, descricao_curta = :descricao_curta, descricao_longa = :descricao_longa, video_url = :video_url, link_github = :link_github, link_deploy = :link_deploy, tipo_download = :tipo_download, destaque = :destaque
+                    WHERE id = :id
+                """)
+                conn.execute(query, params)
 
             if "imagens_extras" in request.files:
                 files = request.files.getlist("imagens_extras")
                 for file in files:
                     img_url = _salvar_upload(file)
                     if img_url:
-                        conn.exec_driver_sql("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (%s, %s)", (id, img_url))
+                        conn.execute(
+                            text("INSERT INTO projeto_imagens (projeto_id, imagem_url) VALUES (:pid, :url)"),
+                            {"pid": id, "url": img_url}
+                        )
 
         return redirect(url_for("admin", msg="Projeto atualizado com sucesso!"))
 
     with db.engine.connect() as conn:
-        projeto = conn.exec_driver_sql("SELECT * FROM projetos WHERE id = %s", (id,)).mappings().fetchone()
+        projeto = conn.execute(text("SELECT * FROM projetos WHERE id = :id"), {"id": id}).mappings().fetchone()
 
     if not projeto:
         abort(404)
@@ -405,7 +450,7 @@ def editar_projeto(id):
 @login_required
 def deletar_projeto(id):
     with db.engine.begin() as conn:
-        conn.exec_driver_sql("DELETE FROM projetos WHERE id = %s", (id,))
+        conn.execute(text("DELETE FROM projetos WHERE id = :id"), {"id": id})
     return redirect(url_for("admin", msg="Projeto excluído com sucesso!"))
 
 
@@ -420,9 +465,9 @@ def adicionar_habilidade():
     destaque = 1 if "destaque" in request.form else 0
 
     with db.engine.begin() as conn:
-        conn.exec_driver_sql(
-            "INSERT INTO habilidades (nome, categoria, cor, cor_fundo, cor_texto, destaque) VALUES (%s, %s, %s, %s, %s, %s)",
-            (nome, categoria, cor, cor_fundo, cor_texto, destaque)
+        conn.execute(
+            text("INSERT INTO habilidades (nome, categoria, cor, cor_fundo, cor_texto, destaque) VALUES (:nome, :categoria, :cor, :cor_fundo, :cor_texto, :destaque)"),
+            {"nome": nome, "categoria": categoria, "cor": cor, "cor_fundo": cor_fundo, "cor_texto": cor_texto, "destaque": destaque}
         )
     return redirect(url_for("admin", msg="Habilidade adicionada com sucesso!"))
 
@@ -439,9 +484,9 @@ def editar_habilidade(id):
         destaque = 1 if "destaque" in request.form else 0
 
         with db.engine.begin() as conn:
-            conn.exec_driver_sql(
-                "UPDATE habilidades SET nome = %s, categoria = %s, cor = %s, cor_fundo = %s, cor_texto = %s, destaque = %s WHERE id = %s",
-                (nome, categoria, cor, cor_fundo, cor_texto, destaque, id)
+            conn.execute(
+                text("UPDATE habilidades SET nome = :nome, categoria = :categoria, cor = :cor, cor_fundo = :cor_fundo, cor_texto = :cor_texto, destaque = :destaque WHERE id = :id"),
+                {"nome": nome, "categoria": categoria, "cor": cor, "cor_fundo": cor_fundo, "cor_texto": cor_texto, "destaque": destaque, "id": id}
             )
         return redirect(url_for("admin", msg="Habilidade atualizada com sucesso!"))
     
@@ -452,7 +497,7 @@ def editar_habilidade(id):
 @login_required
 def deletar_habilidade(id):
     with db.engine.begin() as conn:
-        conn.exec_driver_sql("DELETE FROM habilidades WHERE id = %s", (id,))
+        conn.execute(text("DELETE FROM habilidades WHERE id = :id"), {"id": id})
     return redirect(url_for("admin", msg="Habilidade excluída com sucesso!"))
 
 
@@ -469,28 +514,37 @@ def atualizar_sobre():
     link_linkedin = request.form["link_linkedin"]
 
     with db.engine.begin() as conn:
-        resultado = conn.exec_driver_sql("SELECT id FROM sobre_mim LIMIT 1").fetchone()
+        resultado = conn.execute(text("SELECT id FROM sobre_mim LIMIT 1")).fetchone()
         avatar_path = _salvar_upload(request.files.get("avatar"))
+
+        params = {
+            "titulo_principal": titulo_principal, "subtitulo": subtitulo, "texto_home": texto_home,
+            "biografia": biografia, "localizacao": localizacao, "email_contato": email_contato,
+            "link_github": link_github, "link_linkedin": link_linkedin
+        }
 
         if resultado:
             sobre_id = resultado[0]
+            params["id"] = sobre_id
             if avatar_path:
-                conn.exec_driver_sql(
-                    """UPDATE sobre_mim SET titulo_principal = %s, subtitulo = %s, texto_home = %s, biografia = %s, 
-                       localizacao = %s, email_contato = %s, link_github = %s, link_linkedin = %s, avatar_url = %s WHERE id = %s""",
-                    (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_path, sobre_id)
+                params["avatar_url"] = avatar_path
+                conn.execute(
+                    text("""UPDATE sobre_mim SET titulo_principal = :titulo_principal, subtitulo = :subtitulo, texto_home = :texto_home, biografia = :biografia,
+                       localizacao = :localizacao, email_contato = :email_contato, link_github = :link_github, link_linkedin = :link_linkedin, avatar_url = :avatar_url WHERE id = :id"""),
+                    params
                 )
             else:
-                conn.exec_driver_sql(
-                    """UPDATE sobre_mim SET titulo_principal = %s, subtitulo = %s, texto_home = %s, biografia = %s, 
-                       localizacao = %s, email_contato = %s, link_github = %s, link_linkedin = %s WHERE id = %s""",
-                    (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, sobre_id)
+                conn.execute(
+                    text("""UPDATE sobre_mim SET titulo_principal = :titulo_principal, subtitulo = :subtitulo, texto_home = :texto_home, biografia = :biografia,
+                       localizacao = :localizacao, email_contato = :email_contato, link_github = :link_github, link_linkedin = :link_linkedin WHERE id = :id"""),
+                    params
                 )
         else:
-            conn.exec_driver_sql(
-                """INSERT INTO sobre_mim (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_url)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_path)
+            params["avatar_url"] = avatar_path
+            conn.execute(
+                text("""INSERT INTO sobre_mim (titulo_principal, subtitulo, texto_home, biografia, localizacao, email_contato, link_github, link_linkedin, avatar_url)
+                   VALUES (:titulo_principal, :subtitulo, :texto_home, :biografia, :localizacao, :email_contato, :link_github, :link_linkedin, :avatar_url)"""),
+                params
             )
 
     return redirect(url_for("admin", msg="Informações do perfil atualizadas com sucesso!"))
