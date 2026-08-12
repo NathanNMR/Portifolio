@@ -211,16 +211,26 @@ def home():
     with db.engine.connect() as conn:
         sobre = conn.exec_driver_sql("SELECT * FROM sobre_mim LIMIT 1").mappings().fetchone()
 
-        projetos = conn.exec_driver_sql("""
-            SELECT id, titulo, slug, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque, criado_em,
-                   IF(CHAR_LENGTH(descricao_curta) > 110, CONCAT(SUBSTRING(descricao_curta, 1, 107), '...'), descricao_curta) AS descricao_curta
-            FROM projetos 
-            WHERE destaque = 1 
-            ORDER BY criado_em DESC 
+        projetos_raw = conn.exec_driver_sql("""
+            SELECT id, titulo, slug, descricao_curta, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque, criado_em
+            FROM projetos
+            WHERE destaque = 1
+            ORDER BY criado_em DESC
             LIMIT 3
         """).mappings().all()
 
         habilidades_destaque = conn.exec_driver_sql("SELECT * FROM habilidades WHERE destaque = 1").mappings().all()
+
+    # Trunca a descrição curta em Python (em vez de SQL) para funcionar
+    # tanto em MySQL quanto no fallback SQLite, cujas funções de string
+    # (IF/CHAR_LENGTH/CONCAT/SUBSTRING) não são as mesmas.
+    projetos = []
+    for p in projetos_raw:
+        p = dict(p)
+        desc = p.get("descricao_curta") or ""
+        if len(desc) > 110:
+            p["descricao_curta"] = desc[:107] + "..."
+        projetos.append(p)
 
     return render_template("index.html", sobre=sobre, projetos=projetos, habilidades_destaque=habilidades_destaque)
 
@@ -236,7 +246,13 @@ def todos_projetos():
 
 @app.route("/habilidades")
 def listar_habilidades():
-    return redirect(url_for("home") + "#habilidades")
+    with db.engine.connect() as conn:
+        sobre = conn.exec_driver_sql("SELECT * FROM sobre_mim LIMIT 1").mappings().fetchone()
+        habilidades = conn.exec_driver_sql(
+            "SELECT * FROM habilidades ORDER BY categoria ASC, nome ASC"
+        ).mappings().all()
+
+    return render_template("todas_habilidades.html", sobre=sobre, habilidades=habilidades)
 
 
 @app.route("/projeto/<string:slug>")

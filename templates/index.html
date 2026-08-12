@@ -98,6 +98,7 @@
     <section id="habilidades">
         <div class="section-header">
             <h2 class="section-title">Habilidades em destaque</h2>
+            <a href="/habilidades" class="view-all-link">Ver todas →</a>
         </div>
         <div class="skills-grid">
             {% for hab in habilidades_destaque %}
@@ -131,7 +132,9 @@
         <div class="eyebrow"><span class="dot"></span> CONTATO</div>
         <p>Vamos trabalhar juntos? Entre em contato:</p>
         <a href="mailto:{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}"
-            class="footer-email">
+            class="footer-email"
+            data-email-modal
+            data-email="{{ sobre.email_contato if sobre else 'seu_email@exemplo.com' }}">
             <svg class="mail-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <rect x="2" y="4.5" width="20" height="15" rx="1.5"/>
                 <path d="m2.5 5.5 9.5 8 9.5-8"/>
@@ -157,5 +160,6 @@
             document.body.classList.add('light-theme');
         }
     </script>
+    <script src="{{ url_for('static', filename='js/email-modal.js') }}"></script>
 </body>
 </html>
