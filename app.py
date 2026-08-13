@@ -1,4 +1,5 @@
 import os
+import io
 import uuid
 import re
 from datetime import datetime
@@ -37,17 +38,83 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# ---------------------------------------------------------------------------
+# Armazenamento de imagens (Cloudflare R2 / S3-compatível)
+#
+# O Render tem sistema de arquivos EFÊMERO: qualquer arquivo salvo em disco
+# (como as imagens enviadas pelo painel admin) é apagado sempre que o serviço
+# reinicia, hiberna (plano free) ou faz um novo deploy. Por isso as imagens
+# "somem depois de um tempo" mesmo com o banco (Aiven) intacto — o banco só
+# guarda o caminho, o arquivo em si evaporava.
+#
+# Se as variáveis R2_* abaixo estiverem configuradas, os uploads vão para um
+# bucket do Cloudflare R2 (armazenamento externo, persistente) e o app passa
+# a servir a URL pública do bucket. Sem essas variáveis, o app cai de volta
+# para salvar em disco local — útil só para rodar o projeto na sua máquina.
+# ---------------------------------------------------------------------------
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID")
+R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY")
+R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME")
+R2_PUBLIC_BASE_URL = (os.environ.get("R2_PUBLIC_BASE_URL") or "").rstrip("/")
+
+USE_R2 = all([R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_BASE_URL])
+
+_r2_client = None
+if USE_R2:
+    import boto3
+    from botocore.config import Config as BotoConfig
+
+    _r2_client = boto3.client(
+        "s3",
+        endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        config=BotoConfig(signature_version="s3v4"),
+        region_name="auto",
+    )
+else:
+    app.logger.warning(
+        "R2 não configurado — uploads vão para o disco local, que é apagado "
+        "a cada deploy/restart no Render. Configure as variáveis R2_* em produção."
+    )
+
 from sqlalchemy.engine import make_url
 
-# Configuração do Banco de Dados via SQLAlchemy com suporte a Aiven (PyMySQL + SSL)
+# ---------------------------------------------------------------------------
+# Configuração do Banco de Dados
+#
+# Suporta tanto MySQL (Aiven, PlanetScale, etc. via PyMySQL) quanto
+# PostgreSQL (Neon, Supabase, Render Postgres, etc. via psycopg2) — a escolha
+# é automática, baseada no prefixo da própria DATABASE_URL. Isso deixa o app
+# livre para trocar de provedor sem mexer em código, só trocando a variável
+# de ambiente no Render.
+# ---------------------------------------------------------------------------
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
     # Remove espaços, quebras de linha e aspas que costumam sobrar ao colar
     # a connection string em painéis como o do Render.
     database_url = database_url.strip().strip('"').strip("'")
-    if database_url.startswith("mysql://"):
+
+    if database_url.startswith("postgres://"):
+        # Alguns provedores (Neon, Supabase, Heroku-style) ainda devolvem o
+        # prefixo antigo "postgres://", que o SQLAlchemy 1.4+ não aceita mais.
+        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+    elif database_url.startswith("postgresql://"):
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+    elif database_url.startswith("mysql://"):
         database_url = database_url.replace("mysql://", "mysql+pymysql://", 1)
-    database_url = database_url.split("?")[0] + "?ssl_disabled=false"
+
+    base_url, _, query = database_url.partition("?")
+    if base_url.startswith("mysql+pymysql://"):
+        # A Aiven (e a maioria dos MySQL gerenciados) exige TLS.
+        database_url = base_url + "?ssl_disabled=false"
+    elif base_url.startswith("postgresql+psycopg2://"):
+        # Neon, Supabase e Render Postgres exigem SSL; "require" funciona
+        # nos três sem precisar de certificado customizado.
+        params = dict(p.split("=", 1) for p in query.split("&") if "=" in p) if query else {}
+        params.setdefault("sslmode", "require")
+        database_url = base_url + "?" + "&".join(f"{k}={v}" for k, v in params.items())
 
     try:
         make_url(database_url)
@@ -55,8 +122,8 @@ if database_url:
         # Uma DATABASE_URL malformada não pode derrubar o processo inteiro —
         # sem isso, o Gunicorn nunca abre a porta e o Render mata o deploy.
         print(f"[config] AVISO: DATABASE_URL inválida ou malformada ({e}).")
-        print("[config] Confira a variável no painel do Render — copie a Service "
-              "URI direto da Aiven, sem aspas nem espaços extras.")
+        print("[config] Confira a variável no painel do Render — copie a connection "
+              "string direto do provedor, sem aspas nem espaços extras.")
         print("[config] Usando SQLite local temporário para o app conseguir subir.")
         database_url = "sqlite:///portfolio_local.db"
 else:
@@ -309,21 +376,52 @@ def admin():
     )
 
 
+_EXT_TO_PIL_FORMAT = {
+    "jpg": "JPEG", "jpeg": "JPEG", "png": "PNG", "webp": "WEBP", "gif": "GIF"
+}
+_PIL_FORMAT_TO_CONTENT_TYPE = {
+    "JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp", "GIF": "image/gif"
+}
+
+
 def _salvar_upload(file_storage):
-    if file_storage and file_storage.filename != "" and arquivo_permitido(file_storage.filename):
-        filename = nome_arquivo_seguro(file_storage.filename)
-        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-        try:
-            img = Image.open(file_storage)
-            if img.mode in ("RGBA", "P"):
-                img = img.convert("RGB")
-            img.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
-            img.save(filepath, optimize=True, quality=85)
-        except Exception:
-            file_storage.seek(0)
-            file_storage.save(filepath)
-        return f"/static/uploads/{filename}"
-    return None
+    if not (file_storage and file_storage.filename != "" and arquivo_permitido(file_storage.filename)):
+        return None
+
+    filename = nome_arquivo_seguro(file_storage.filename)
+    ext = filename.rsplit(".", 1)[1].lower()
+    pil_format = _EXT_TO_PIL_FORMAT.get(ext, "JPEG")
+
+    # Processa/otimiza a imagem em memória (funciona igual para R2 ou disco local)
+    buffer = io.BytesIO()
+    try:
+        img = Image.open(file_storage)
+        if pil_format == "JPEG" and img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.thumbnail((1200, 1200), Image.Resampling.LANCZOS)
+        save_kwargs = {"optimize": True}
+        if pil_format == "JPEG":
+            save_kwargs["quality"] = 85
+        img.save(buffer, format=pil_format, **save_kwargs)
+        content_type = _PIL_FORMAT_TO_CONTENT_TYPE.get(pil_format, "application/octet-stream")
+    except Exception:
+        file_storage.seek(0)
+        buffer.write(file_storage.read())
+        content_type = file_storage.mimetype or "application/octet-stream"
+    buffer.seek(0)
+
+    if USE_R2:
+        _r2_client.upload_fileobj(
+            buffer, R2_BUCKET_NAME, filename,
+            ExtraArgs={"ContentType": content_type, "CacheControl": "public, max-age=31536000, immutable"}
+        )
+        return f"{R2_PUBLIC_BASE_URL}/{filename}"
+
+    # Fallback: disco local (só persiste em ambiente de desenvolvimento)
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    with open(filepath, "wb") as f:
+        f.write(buffer.getbuffer())
+    return f"/static/uploads/{filename}"
 
 
 @app.route("/admin/projeto", methods=["POST"])

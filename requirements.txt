@@ -2,10 +2,11 @@ Flask==3.0.2
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.7
 pymysql==1.1.0
-mysql-connector-python==8.3.0
+psycopg2-binary==2.9.9
 python-dotenv==1.0.1
 bleach==6.1.0
 Pillow>=10.2.0
 gunicorn==21.2.0
 tinycss2==1.3.0
 cryptography
+boto3==1.34.144
