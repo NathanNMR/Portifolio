@@ -85,7 +85,7 @@ from sqlalchemy.engine import make_url
 # Configuração do Banco de Dados
 #
 # Suporta tanto MySQL (Aiven, PlanetScale, etc. via PyMySQL) quanto
-# PostgreSQL (Neon, Supabase, Render Postgres, etc. via psycopg2) — a escolha
+# PostgreSQL (Neon, Supabase, Render Postgres, etc. via psycopg 3) — a escolha
 # é automática, baseada no prefixo da própria DATABASE_URL. Isso deixa o app
 # livre para trocar de provedor sem mexer em código, só trocando a variável
 # de ambiente no Render.
@@ -99,9 +99,12 @@ if database_url:
     if database_url.startswith("postgres://"):
         # Alguns provedores (Neon, Supabase, Heroku-style) ainda devolvem o
         # prefixo antigo "postgres://", que o SQLAlchemy 1.4+ não aceita mais.
-        database_url = database_url.replace("postgres://", "postgresql+psycopg2://", 1)
+        # Usamos o driver psycopg (v3), não o psycopg2 — o psycopg2 não tem
+        # build compatível com Python 3.13+/3.14 (símbolo interno do CPython
+        # que ele usa foi removido), e não é mais mantido ativamente.
+        database_url = database_url.replace("postgres://", "postgresql+psycopg://", 1)
     elif database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        database_url = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
     elif database_url.startswith("mysql://"):
         database_url = database_url.replace("mysql://", "mysql+pymysql://", 1)
 
@@ -109,7 +112,7 @@ if database_url:
     if base_url.startswith("mysql+pymysql://"):
         # A Aiven (e a maioria dos MySQL gerenciados) exige TLS.
         database_url = base_url + "?ssl_disabled=false"
-    elif base_url.startswith("postgresql+psycopg2://"):
+    elif base_url.startswith("postgresql+psycopg://"):
         # Neon, Supabase e Render Postgres exigem SSL; "require" funciona
         # nos três sem precisar de certificado customizado.
         params = dict(p.split("=", 1) for p in query.split("&") if "=" in p) if query else {}
