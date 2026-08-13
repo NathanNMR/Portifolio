@@ -427,6 +427,22 @@ def _salvar_upload(file_storage):
     return f"/static/uploads/{filename}"
 
 
+def _inserir_e_obter_id(conn, sql_insert, params):
+    """
+    Executa um INSERT e devolve o id da linha criada.
+
+    MySQL e SQLite expõem isso via cursor.lastrowid — mas o PostgreSQL não
+    suporta lastrowid de jeito nenhum (não é um recurso do protocolo dele),
+    então para ele é preciso pedir explicitamente com "RETURNING id".
+    """
+    if db.engine.dialect.name == "postgresql":
+        result = conn.execute(text(sql_insert + " RETURNING id"), params)
+        return result.scalar_one()
+    else:
+        result = conn.execute(text(sql_insert), params)
+        return result.lastrowid
+
+
 @app.route("/admin/projeto", methods=["POST"])
 @login_required
 def adicionar_projeto():
@@ -454,17 +470,16 @@ def adicionar_projeto():
 
         imagem_capa_path = _salvar_upload(request.files.get("imagem_capa"))
 
-        query = text("""
+        query = """
             INSERT INTO projetos (titulo, slug, descricao_curta, descricao_longa, imagem_capa, video_url, link_github, link_deploy, tipo_download, destaque)
             VALUES (:titulo, :slug, :descricao_curta, :descricao_longa, :imagem_capa, :video_url, :link_github, :link_deploy, :tipo_download, :destaque)
-        """)
-        cursor = conn.execute(query, {
+        """
+        projeto_id = _inserir_e_obter_id(conn, query, {
             "titulo": titulo, "slug": slug, "descricao_curta": descricao_curta,
             "descricao_longa": descricao_longa, "imagem_capa": imagem_capa_path,
             "video_url": video_url, "link_github": link_github, "link_deploy": link_deploy,
             "tipo_download": tipo_download, "destaque": destaque
         })
-        projeto_id = cursor.lastrowid
 
         if "imagens_extras" in request.files:
             files = request.files.getlist("imagens_extras")
