@@ -814,9 +814,7 @@ body.light-theme .terminal-panel {
 }
 
 .skill-tag:hover {
-    border-color: var(--accent-color);
-    transform: translateY(-3px);
-    box-shadow: 0 12px 25px -10px rgba(0,0,0,0.35);
+    border-color: var(--gray-border-strong);
 }
 
 .skill-led {
